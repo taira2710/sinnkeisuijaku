@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>神経衰弱</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin: 50px;
+            position: relative;
+        }
+
+        #game-board {
+            display: grid;
+            grid-template-columns: repeat(4, 100px);
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .card {
+            width: 100px;
+            height: 100px;
+            background-color: lightgray;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            cursor: pointer;
+        }
+
+        select {
+            margin-bottom: 20px;
+            padding: 10px;
+            font-size: 16px;
+        }
+
+        h2 {
+            margin-top: 20px;
+        }
+
+        #timer {
+            font-size: 20px;
+            color: red;
+        }
+
+        /* 正解時の赤字 */
+        .correct {
+            color: red;
+            font-weight: bold;
+        }
+
+        /* クリア時の派手な演出 */
+        #clear-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 50px;
+            color: gold;
+            font-weight: bold;
+            animation: clearAnimation 3s ease-in-out;
+        }
+
+        @keyframes clearAnimation {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.5);
+            }
+            50% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>神経衰弱</h1>
+    <label for="difficulty">難易度を選んでください:</label>
+    <select id="difficulty">
+        <option value="easy">初心者</option>
+        <option value="medium">中級者</option>
+        <option value="hard">上級者</option>
+    </select>
+    <div id="game-board"></div>
+    <h2 id="status"></h2>
+    <p id="timer">残り時間: <span id="time-remaining"></span> 秒</p>
+    <div id="clear-message" style="display: none;">クリア！</div>
+
+    <script>
+        const symbols = ["🍎", "🍌", "🍒", "🍇", "🍊", "🍉", "🍍", "🍓", "🍑", "🍋"];
+        let board = document.getElementById("game-board");
+        let selected = [];
+        let matched = [];
+        let totalPairs;
+        let timer;
+        let timeRemaining;
+        let currentDifficulty = 'easy'; // 初期設定は初心者
+
+        // 難易度ごとのカードペア数と制限時間を設定
+        const difficultySettings = {
+            easy: { pairs: 4, time: 30 },    // 4ペア (8枚のカード)、制限時間 30秒
+            medium: { pairs: 6, time: 45 },  // 6ペア (12枚のカード)、制限時間 45秒
+            hard: { pairs: 8, time: 60 }     // 8ペア (16枚のカード)、制限時間 60秒
+        };
+
+        // 難易度変更時の処理
+        document.getElementById("difficulty").addEventListener("change", function() {
+            currentDifficulty = this.value;
+            resetGame();
+        });
+
+        // ゲームのリセット
+        function resetGame() {
+            // 初期設定を取得
+            const settings = difficultySettings[currentDifficulty];
+            totalPairs = settings.pairs;
+            timeRemaining = settings.time;
+
+            // ゲームボードのリセット
+            board.innerHTML = '';
+            matched = [];
+            selected = [];
+            document.getElementById("status").textContent = '';
+            document.getElementById("time-remaining").textContent = timeRemaining;
+
+            // 画面にタイマーを表示
+            clearInterval(timer);
+            startTimer();
+
+            // 選択した難易度に応じたカードペア数の配列を作成
+            let currentSymbols = symbols.slice(0, totalPairs);
+            currentSymbols = [...currentSymbols, ...currentSymbols]; // ペアを2倍に
+
+            // 配列をシャッフル
+            currentSymbols.sort(() => Math.random() - 0.5);
+
+            // ゲームボードにカードを追加
+            currentSymbols.forEach((symbol, index) => {
+                const card = document.createElement("div");
+                card.classList.add("card");
+                card.dataset.index = index;
+                card.addEventListener("click", () => handleCardClick(card, symbol, index));
+                board.appendChild(card);
+            });
+        }
+
+        // カードがクリックされたときの処理
+        function handleCardClick(card, symbol, index) {
+            if (matched.includes(index) || selected.length >= 2) return;
+
+            card.textContent = symbol;
+            selected.push({ index, symbol });
+
+            if (selected.length === 2) {
+                if (selected[0].symbol === selected[1].symbol) {
+                    matched.push(selected[0].index, selected[1].index);
+                    // 正解の表示
+                    setCorrectMessage();
+
+                    if (matched.length === totalPairs * 2) {
+                        clearInterval(timer);
+                        showClearMessage();
+                    }
+                } else {
+                    setTimeout(() => {
+                        document.querySelectorAll(".card").forEach(c => {
+                            if (!matched.includes(Number(c.dataset.index))) c.textContent = "";
+                        });
+                    }, 1000);
+                }
+                selected = [];
+            }
+        }
+
+        // 正解時のメッセージを赤字で表示
+        function setCorrectMessage() {
+            document.getElementById("status").textContent = "正解！";
+            document.getElementById("status").classList.add("correct");
+            setTimeout(() => {
+                document.getElementById("status").textContent = '';
+                document.getElementById("status").classList.remove("correct");
+            }, 1000);
+        }
+
+        // すべて正解した時に派手な「クリア！」を表示
+        function showClearMessage() {
+            document.getElementById("clear-message").style.display = 'block';
+        }
+
+        // タイマーを開始
+        function startTimer() {
+            timer = setInterval(() => {
+                if (timeRemaining > 0) {
+                    timeRemaining--;
+                    document.getElementById("time-remaining").textContent = timeRemaining;
+                } else {
+                    clearInterval(timer);
+                    document.getElementById("status").textContent = "時間切れ！";
+                }
+            }, 1000);
+        }
+
+        // 初期ゲーム開始
+        resetGame();
+    </script>
+</body>
+</html>
